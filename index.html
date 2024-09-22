@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BFHL App</title>
+</head>
+<body>
+    <h1>BFHL Data Submission</h1>
+    <form id="dataForm">
+        <label for="data">Enter Data (comma separated):</label><br>
+        <input type="text" id="data" placeholder='e.g., "M", "1", "334", "4", "B", "Z", "a"'><br><br>
+        
+        <label for="file">Upload File:</label><br>
+        <input type="file" id="fileInput"><br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <div id="responseOptions" style="margin-top: 20px;"></div>
+    <button id="showSelected" style="display: none;">Show Selected</button>
+    <div id="responseDisplay" style="margin-top: 20px;"></div>
+
+    <script>
+        let lastResponse = {};  // Store the last response here
+
+        document.getElementById('dataForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const dataInput = document.getElementById('data').value;
+            const dataArray = dataInput.split(',').map(item => item.trim());
+
+            const fileInput = document.getElementById('fileInput').files[0];
+            let file_b64 = null;
+
+            if (fileInput) {
+                const reader = new FileReader();
+                reader.onloadend = function () {
+                    file_b64 = reader.result.split(',')[1];  // Get base64 part
+                    sendData(dataArray, file_b64);
+                };
+                reader.readAsDataURL(fileInput);
+            } else {
+                sendData(dataArray, file_b64);
+            }
+        });
+
+        function sendData(dataArray, file_b64) {
+            fetch('http://localhost:3000/bfhl', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ data: dataArray, file_b64: file_b64 })
+            })
+            .then(response => response.json())
+            .then(data => {
+                lastResponse = data;  // Store the response for later use
+                displayResponse(data);  // Call to display the response properly
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('responseDisplay').innerHTML = `<p>Error: ${error.message}</p>`;
+            });
+        }
+
+        function displayResponse(response) {
+            // Clear previous options
+            document.getElementById('responseOptions').innerHTML = "";
+            document.getElementById('responseDisplay').innerHTML = "";
+            document.getElementById('showSelected').style.display = "none";
+
+            // Create checkboxes for all response items
+            const responseKeys = [
+                "is_success",
+                "user_id",
+                "email",
+                "roll_number",
+                "numbers",
+                "alphabets",
+                "highest_lowercase_alphabet",
+                "file_valid",
+                "file_mime_type",
+                "file_size_kb"
+            ];
+
+            responseKeys.forEach(key => {
+                const value = response[key];
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = key;
+                checkbox.value = key;
+
+                const label = document.createElement('label');
+                label.htmlFor = key;
+                label.textContent = key;
+
+                const item = document.createElement('div');
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                document.getElementById('responseOptions').appendChild(item);
+            });
+
+            document.getElementById('showSelected').style.display = "inline-block";
+        }
+
+        document.getElementById('showSelected').addEventListener('click', function() {
+            const selectedValues = [];
+            const checkboxes = document.querySelectorAll('#responseOptions input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    selectedValues.push(checkbox.value);
+                }
+            });
+
+            const responseText = selectedValues.map(key => {
+                const value = lastResponse[key];  // Use lastResponse instead of response
+                return `<strong>${key}:</strong> ${Array.isArray(value) ? `[ ${value.join(", ")} ]` : value}<br>`;
+            }).join('');
+
+            document.getElementById('responseDisplay').innerHTML = responseText;
+        });
+    </script>
+</body>
+</html>
